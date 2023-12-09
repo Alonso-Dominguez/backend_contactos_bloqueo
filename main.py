@@ -16,7 +16,7 @@ origins = [
     "http://0.0.0.0:8080",  
     "http://localhost:8080",  
     "http://127.0.0.1:8080", 
-    #"https://backend-contactos-bloqueo-fb3d5fd89684.herokuapp.com",
+    "https://frontend-contactos-bloqueo-49a8fc94c0ff.herokuapp.com",
 ]
 
 # Agregamos las opciones de origenes, credenciales, métodos y headers
