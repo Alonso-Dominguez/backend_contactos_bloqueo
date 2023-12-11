@@ -177,13 +177,13 @@ async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
 def cambiar_token_en_login(usuario):
     token = str(new_token())
     c = conn.cursor()
-    c.execute("UPDATE usuarios SET token = ? WHERE username = ?", (token, usuario))
+    c.execute("UPDATE usuarios SET token = ? WHERE usuario = ?", (token, usuario))
     return token
 
 async def get_user_token(usuario: str, password_hash: str):
     try:
         c = conn.cursor()
-        c.execute("SELECT token FROM usuarios WHERE username = ? AND contrasena = ?", (usuario, password_hash))
+        c.execute("SELECT token FROM usuarios WHERE usuario = ? AND contrasena = ?", (usuario, password_hash))
         result = c.fetchone()
         return result
     except sqlite3.Error as e:
