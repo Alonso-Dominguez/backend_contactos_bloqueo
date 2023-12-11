@@ -145,7 +145,7 @@ conn = sqlite3.connect('sql/usuarios.db')
 class TokenResponseModel(BaseModel):
     token: str
 
-def validate_credentials(conn, username, password_hash):
+def validate_credentials(conn, usuario, password_hash):
     try:
         c = conn.cursor()
         c.execute("SELECT * FROM usuarios WHERE usuario = ? AND contrasena = ?", (username, password_hash))
@@ -172,8 +172,8 @@ def decrypt_token(encrypted_token):
 @app.get("/")
 async def root(credentials: HTTPBasicCredentials = Depends(security)):
     user_token = validate_credentials(conn, credentials.username, hashlib.sha512(credentials.password.encode()).hexdigest())
-    conn.close() 
-    return {"message": "Inicio de sesión exitoso"} 
+    conn.close()  # Asegúrate de cerrar la conexión
+    return {"message": "Inicio de sesión exitoso"}  # O cualquier otro mensaje que desees
 
 
 class TokenResponseModel(BaseModel):
