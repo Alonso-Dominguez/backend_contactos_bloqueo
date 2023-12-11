@@ -149,14 +149,13 @@ security_bearer = HTTPBearer()
 conn = sqlite3.connect('sql/usuarios.db')
 
 
-# Función para manejar la ruta "/" que valida un token de autenticación
-@app.get("/")
-async def root(credentials: HTTPBasicCredentials = Depends(security)):
-    user = validate_credentials(conn, credentials.username, hashlib.md5(credentials.password.encode()).hexdigest())
-    return {"message": "Token válido para el usuario: {}".format(user)}
-
 class TokenResponseModel(BaseModel):
     token: str
+
+@app.get("/")
+async def root(credentials: HTTPBasicCredentials = Depends(security)):
+    user = validate_credentials(conn, credentials.username, hashlib.sha512(credentials.password.encode()).hexdigest())
+    return {"message": "Token válido para el usuario: {}".format(user)}
 
 @app.get("/token/", response_model=TokenResponseModel)
 async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
@@ -175,11 +174,7 @@ async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
             headers={"WWW-Authenticate": "Basic"},
         )
 
-# Respuesta de error
-def error_response(mensaje: str, status_code: int):
-    return JSONResponse(content={"mensaje": mensaje}, status_code=status_code)
-
-async def cambiar_token_en_login(usuario):
+def cambiar_token_en_login(usuario):
     token = str(new_token())
     c = conn.cursor()
     c.execute("UPDATE usuarios SET token = ? WHERE username = ?", (token, usuario))
@@ -188,10 +183,10 @@ async def cambiar_token_en_login(usuario):
 async def get_user_token(usuario: str, password_hash: str):
     try:
         c = conn.cursor()
-        c.execute("SELECT token FROM usuarios WHERE username = ? AND password = ?", (usuario, password_hash))
+        c.execute("SELECT token FROM usuarios WHERE username = ? AND contrasena = ?", (usuario, password_hash))
         result = c.fetchone()
         return result
-    except Exception as e:
+    except sqlite3.Error as e:
         # Manejar la excepción de manera adecuada, loggear o notificar según sea necesario
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
