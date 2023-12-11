@@ -19,7 +19,7 @@ origins = [
     "http://0.0.0.0:8080",  
     "http://localhost:8080",  
     "http://127.0.0.1:8080", 
-    "https://frontend-contactos-bloqueo-49a8fc94c0ff.herokuapp.com",
+    "https://frontend-contactos-bloqueo-49a8fc94c0ff.herokuapp.com/",
 ]
 
 # Agregamos las opciones de origenes, credenciales, métodos y headers
@@ -208,7 +208,7 @@ async def registro(usuario: str, contrasena: str):
     return {"message": "Usuario registrado exitosamente"}
 
 # Nuevo endpoint para la ruta "/login/"
-@app.post("/login/")
+@app.get("/login/")
 async def login(usuario: str, contrasena: str):
     contrasena_hash = hash_password(contrasena)
 
