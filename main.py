@@ -161,7 +161,7 @@ class TokenResponseModel(BaseModel):
 @app.get("/token/", response_model=TokenResponseModel)
 async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
     usuario = credentials.username
-    password_hash = hashlib.md5(credentials.password.encode()).hexdigest()
+    password_hash = hashlib.sha256(credentials.password.encode()).hexdigest()
 
     user_token = await get_user_token(usuario, password_hash)
 
@@ -179,18 +179,24 @@ async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
 def error_response(mensaje: str, status_code: int):
     return JSONResponse(content={"mensaje": mensaje}, status_code=status_code)
 
-
 async def cambiar_token_en_login(usuario):
     token = str(new_token())
     c = conn.cursor()
     c.execute("UPDATE usuarios SET token = ? WHERE username = ?", (token, usuario))
     return token
-    
+
 async def get_user_token(usuario: str, password_hash: str):
-    c = conn.cursor()
-    c.execute("SELECT token FROM usuarios WHERE username = ? AND password = ?", (usuario, password_hash))
-    result = c.fetchone()
-    return result
+    try:
+        c = conn.cursor()
+        c.execute("SELECT token FROM usuarios WHERE username = ? AND password = ?", (usuario, password_hash))
+        result = c.fetchone()
+        return result
+    except Exception as e:
+        # Manejar la excepción de manera adecuada, loggear o notificar según sea necesario
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al obtener token del usuario",
+        )
 
 # Nuevo endpoint para la ruta "/registro/"
 @app.post("/registro/")
