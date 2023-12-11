@@ -161,7 +161,7 @@ class TokenResponseModel(BaseModel):
 @app.get("/token/", response_model=TokenResponseModel)
 async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
     usuario = credentials.username
-    password_hash = hashlib.sha256(credentials.password.encode()).hexdigest()
+    password_hash = hashlib.sha512(credentials.password.encode()).hexdigest()
 
     user_token = await get_user_token(usuario, password_hash)
 
