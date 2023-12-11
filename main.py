@@ -5,9 +5,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, FastAPI, HTTPException, status
+from pydantic import BaseModel
 import sqlite3
 import hashlib
 import secrets
+
 
 app = FastAPI()
 
@@ -16,7 +19,7 @@ origins = [
     "http://0.0.0.0:8080",  
     "http://localhost:8080",  
     "http://127.0.0.1:8080", 
-    "https://frontend-contactos-bloqueo-49a8fc94c0ff.herokuapp.com",
+    #"https://frontend-contactos-jadc-acbf7ce35d15.herokuapp.com",
 ]
 
 # Agregamos las opciones de origenes, credenciales, métodos y headers
@@ -145,6 +148,7 @@ security_bearer = HTTPBearer()
 # Conexión a la base de datos SQLite
 conn = sqlite3.connect('sql/usuarios.db')
 
+
 # Función para manejar la ruta "/" que valida un token de autenticación
 @app.get("/")
 async def root(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)):
@@ -152,19 +156,42 @@ async def root(credentials: HTTPAuthorizationCredentials = Depends(security_bear
     user = validate_token(conn, token)  # Validar el token en la base de datos
     return {"message": "Token válido para el usuario: {}".format(user)}
 
-# Función para manejar la ruta "/token/" que valida las credenciales de usuario y devuelve un token
-@app.get("/token/")
+class TokenResponseModel(BaseModel):
+    token: str
+
+@app.get("/token/", response_model=TokenResponseModel)
 async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
-    # Obtiene el nombre de usuario y la contraseña de las credenciales básicas
     email = credentials.username
-    password_plain = credentials.password
+    password_hash = hashlib.md5(credentials.password.encode()).hexdigest()
+
+    user_token = await get_user_token(email, password_hash)
+
+    if user_token:
+        token = await cambiar_token_en_login(email)
+        return TokenResponseModel(token)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales inválidas",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+
+# Respuesta de error
+def error_response(mensaje: str, status_code: int):
+    return JSONResponse(content={"mensaje": mensaje}, status_code=status_code)
+
+
+async def cambiar_token_en_login(email):
+    token = str(new_token())
+    c = conn.cursor()
+    c.execute("UPDATE usuarios SET token = ? WHERE username = ?", (token, email))
+    return token
     
-    # Hashear la contraseña antes de validar las credenciales
-    password_hash = hash_password(password_plain)
-    
-    user_token = validate_credentials(conn, email, password_hash)  # Valida las credenciales en la base de datos y obtiene el token
-    
-    return {"Tu token es": user_token}
+async def get_user_token(email: str, password_hash: str):
+    c = conn.cursor()
+    c.execute("SELECT token FROM usuarios WHERE username = ? AND password = ?", (email, password_hash))
+    result = c.fetchone()
+    return result
 
 # Nuevo endpoint para la ruta "/registro/"
 @app.post("/registro/")
