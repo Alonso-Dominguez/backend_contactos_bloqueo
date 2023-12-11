@@ -163,10 +163,10 @@ async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
     usuario = credentials.username
     password_hash = hashlib.md5(credentials.password.encode()).hexdigest()
 
-    user_token = await get_user_token(email, password_hash)
+    user_token = await get_user_token(usuario, password_hash)
 
     if user_token:
-        token = await cambiar_token_en_login(email)
+        token = await cambiar_token_en_login(usuario)
         return TokenResponseModel(token=token)
     else:
         raise HTTPException(
@@ -180,15 +180,15 @@ def error_response(mensaje: str, status_code: int):
     return JSONResponse(content={"mensaje": mensaje}, status_code=status_code)
 
 
-async def cambiar_token_en_login(email):
+async def cambiar_token_en_login(usuario):
     token = str(new_token())
     c = conn.cursor()
-    c.execute("UPDATE usuarios SET token = ? WHERE username = ?", (token, email))
+    c.execute("UPDATE usuarios SET token = ? WHERE username = ?", (token, usuario))
     return token
     
-async def get_user_token(email: str, password_hash: str):
+async def get_user_token(usuario: str, password_hash: str):
     c = conn.cursor()
-    c.execute("SELECT token FROM usuarios WHERE username = ? AND password = ?", (email, password_hash))
+    c.execute("SELECT token FROM usuarios WHERE username = ? AND password = ?", (usuario, password_hash))
     result = c.fetchone()
     return result
 
