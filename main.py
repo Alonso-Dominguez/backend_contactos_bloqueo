@@ -151,9 +151,8 @@ conn = sqlite3.connect('sql/usuarios.db')
 
 # Función para manejar la ruta "/" que valida un token de autenticación
 @app.get("/")
-async def root(credentials: HTTPAuthorizationCredentials = Depends(security_bearer)):
-    token = credentials.credentials  # Obtener el token del encabezado de autorización
-    user = validate_token(conn, token)  # Validar el token en la base de datos
+async def root(credentials: HTTPBasicCredentials = Depends(security)):
+    user = validate_credentials(conn, credentials.username, hashlib.md5(credentials.password.encode()).hexdigest())
     return {"message": "Token válido para el usuario: {}".format(user)}
 
 class TokenResponseModel(BaseModel):
@@ -161,14 +160,14 @@ class TokenResponseModel(BaseModel):
 
 @app.get("/token/", response_model=TokenResponseModel)
 async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
-    email = credentials.username
+    usuario = credentials.username
     password_hash = hashlib.md5(credentials.password.encode()).hexdigest()
 
     user_token = await get_user_token(email, password_hash)
 
     if user_token:
         token = await cambiar_token_en_login(email)
-        return TokenResponseModel(token)
+        return TokenResponseModel(token=token)
     else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
