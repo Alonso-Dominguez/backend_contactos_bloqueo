@@ -148,7 +148,7 @@ class TokenResponseModel(BaseModel):
 def validate_credentials(conn, usuario, password_hash):
     try:
         c = conn.cursor()
-        c.execute("SELECT * FROM usuarios WHERE usuario = ? AND contrasena = ?", (username, password_hash))
+        c.execute("SELECT * FROM usuarios WHERE usuario = ? AND contrasena = ?", (usuario, password_hash))
         result = c.fetchone()
 
         if result:
@@ -171,7 +171,7 @@ def decrypt_token(encrypted_token):
 
 @app.get("/")
 async def root(credentials: HTTPBasicCredentials = Depends(security)):
-    user_token = validate_credentials(conn, credentials.username, hashlib.sha512(credentials.password.encode()).hexdigest())
+    user_token = validate_credentials(conn, credentials.usuario, hashlib.sha512(credentials.password.encode()).hexdigest())
     conn.close()  # Asegúrate de cerrar la conexión
     return {"message": "Inicio de sesión exitoso"}  # O cualquier otro mensaje que desees
 
@@ -211,7 +211,7 @@ async def login(usuario: str, contrasena: str):
 
 @app.get("/auth/", response_model=TokenResponseModel)
 async def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
-    usuario = credentials.username
+    usuario = credentials.usuario
     password_hash = hashlib.sha512(credentials.password.encode()).hexdigest()
 
     user_token = await get_user_token(usuario, password_hash)
