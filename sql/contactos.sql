@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS  usuarios(
     timestamps TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Patricio
--- Contraseña: 123456                                                           
+--Contra: 123456                                                         
 INSERT INTO usuarios (username, password, token) VALUES ('jose@gmail.com', 'e10adc3949ba59abbe56e057f20f883e', '');
+
+--Contra: 654321
+INSERT INTO usuarios (username, password, token) VALUES ('alfredo@gmail.com', 'C33367701511B4F6020EC61DED352059', '');
