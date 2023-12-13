@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from uuid import uuid4 as new_token
 import hashlib
-# Importamos CORS para el acceso
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer, HTTPAuthorizationCredentials
