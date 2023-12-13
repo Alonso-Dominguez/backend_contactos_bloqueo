@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from uuid import uuid4 as new_token
 import hashlib
+# Importamos CORS para el acceso
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer, HTTPAuthorizationCredentials
@@ -20,6 +21,8 @@ app = fastapi.FastAPI()
 
 # Permitimos los origenes para conectarse
 origins = [
+
+    
     "http://0.0.0.0:8080",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
@@ -181,8 +184,9 @@ async def obtener_contacto(email: str, credentialsv: HTTPAuthorizationCredential
         return error_response("Error al consultar los datos", 500)
 
 
-@app.put("/actualizar_contactos/{email}")
-async def actualizar_contacto(email: str, contacto: Contacto, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
+# Modifica el endpoint para usar el ID en lugar del email
+@app.put("/actualizar_contactos/{id}")
+async def actualizar_contacto(id: int, contacto: Contacto, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
     token = credentialsv.credentials
     if not token:
         raise HTTPException(
@@ -191,16 +195,30 @@ async def actualizar_contacto(email: str, contacto: Contacto, credentialsv: HTTP
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    """Actualiza un contacto."""
+    """Actualiza un contacto por ID."""
     try:
         c = conn.cursor()
-        c.execute('UPDATE contactos SET nombre = ?, primer_apellido = ?, segundo_apellido = ?, telefono = ? WHERE email = ?',
-                  (contacto.nombre, contacto.primer_apellido, contacto.segundo_apellido, contacto.telefono, email))
+        c.execute('UPDATE contactos SET nombre = ?, primer_apellido = ?, segundo_apellido = ?, telefono = ? WHERE id = ?',
+                  (contacto.nombre, contacto.primer_apellido, contacto.segundo_apellido, contacto.telefono, id))
         conn.commit()
         return contacto
     except sqlite3.Error:
-        return error_response("El contacto no existe" if not obtener_contacto(email) else "Error al consultar los datos", 400)
+        return error_response("El contacto no existe" if not obtener_contacto_por_id(id) else "Error al consultar los datos", 400)
 
+async def obtener_contacto_por_id(contacto_id: int):
+    c = conn.cursor()
+    c.execute('SELECT * FROM contactos WHERE id = ?', (contacto_id,))
+    contacto = None
+    for row in c:
+        contacto = {
+            "id_contacto": row[0],
+            "nombre": row[1],
+            "primer_apellido": row[2],
+            "segundo_apellido": row[3],
+            "email": row[4],
+            "telefono": row[5],
+        }
+    return contacto
 
 @app.delete("/contactos/{email}")
 async def eliminar_contacto(email: str, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
