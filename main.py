@@ -1,19 +1,30 @@
-from fastapi import FastAPI, HTTPException, Depends, status
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+import fastapi
 import sqlite3
+from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from uuid import uuid4 as new_token
 import hashlib
-import secrets
+# Importamos CORS para el acceso
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.security import HTTPBasic, HTTPBasicCredentials, HTTPBearer, HTTPAuthorizationCredentials
+import time
 
-app = FastAPI()
+security = HTTPBasic()
+
+securirtyBearer = HTTPBearer()
+
+# Crea la base de datos
+conn = sqlite3.connect("sql/contactos.db")
+
+app = fastapi.FastAPI()
 
 # Permitimos los origenes para conectarse
 origins = [
     "http://0.0.0.0:8080",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
-    "https://frontend-contactos-bloqueo-49a8fc94c0ff.herokuapp.com",
+    #"https://herokufrontendsql-8c522739b4c3.herokuapp.com",
 ]
 
 # Agregamos las opciones de origenes, credenciales, métodos y headers
@@ -25,200 +36,44 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# Modelo para la creación de un nuevo contacto
-class ContactoCreate(BaseModel):
+
+class Contacto(BaseModel):
     nombre: str
     primer_apellido: str
     segundo_apellido: str
     email: str
     telefono: str
 
-# Conéctate a la base de datos SQLite y crea una tabla para almacenar los contactos si no existe
-def connect_to_database():
-    conn = sqlite3.connect("sql/contactos.db")
-    cursor = conn.cursor()
-    return conn, cursor
 
-def close_database_connection(conn):
-    conn.close()
-
-# Función para obtener todos los contactos
-def obtener_contactos(cursor):
-    cursor.execute("SELECT * FROM contactos")
-    contactos = cursor.fetchall()
-    return [dict(zip(["id_contacto", "nombre", "primer_apellido", "segundo_apellido", "email", "telefono"], c)) for c in contactos]
-
-# Endpoint para agregar un nuevo contacto
-@app.post("/contactos", description="Agregar un nuevo contacto", response_model=dict)
-async def agregar_contacto(contacto: ContactoCreate):
-    try:
-        conn, cursor = connect_to_database()
-        cursor.execute('''
-            INSERT INTO contactos (nombre, primer_apellido, segundo_apellido, email, telefono)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (contacto.nombre, contacto.primer_apellido, contacto.segundo_apellido, contacto.email, contacto.telefono))
-        conn.commit()
-        close_database_connection(conn)
-        return contacto.dict()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Error al agregar el contacto")
-
-# Endpoint para obtener todos los contactos
-@app.get("/contactos", description="Obtener todos los contactos", response_model=list[dict])
-async def get_contactos():
-    try:
-        conn, cursor = connect_to_database()
-        result = obtener_contactos(cursor)
-        close_database_connection(conn)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Error al obtener los contactos")
-
-# Endpoint para actualizar un contacto por id_contacto
-@app.put("/contactos/{contacto_id}", description="Actualizar un contacto por su ID", response_model=dict)
-@app.patch("/contactos/{contacto_id}", description="Actualizar un contacto por su ID", response_model=dict)
-async def actualizar_contacto(contacto_id: int, contacto: ContactoCreate):
-    try:
-        conn, cursor = connect_to_database()
-        cursor.execute('''
-            UPDATE contactos
-            SET nombre = ?, primer_apellido = ?, segundo_apellido = ?, email = ?, telefono = ?
-            WHERE id_contacto = ?
-        ''', (contacto.nombre, contacto.primer_apellido, contacto.segundo_apellido, contacto.email, contacto.telefono, contacto_id))
-        conn.commit()
-
-        if cursor.rowcount == 0:
-            close_database_connection(conn)
-            raise HTTPException(status_code=404, detail="Contacto no encontrado")
-        
-        close_database_connection(conn)
-        return { "id_contacto": contacto_id, **contacto.dict() }
-
-    except sqlite3.Error as e:
-        raise HTTPException(status_code=500, detail="Error al actualizar el contacto")
-
-# Endpoint para borrar un contacto por id_contacto
-@app.delete("/contactos/{contacto_id}", description="Borrar un contacto por su ID", response_model=dict)
-async def borrar_contacto(contacto_id: int):
-    try:
-        conn, cursor = connect_to_database()
-
-        cursor.execute("SELECT * FROM contactos WHERE id_contacto = ?", (contacto_id,))
-        contacto = cursor.fetchone()
-
-        if not contacto:
-            close_database_connection(conn)
-            raise HTTPException(status_code=404, detail="Contacto no encontrado")
-
-        cursor.execute("DELETE FROM contactos WHERE id_contacto = ?", (contacto_id,))
-        conn.commit()
-
-        close_database_connection(conn)
-
-        return { "id_contacto": contacto_id, **dict(zip(["nombre", "primer_apellido", "segundo_apellido", "email", "telefono"], contacto)) }
-
-    except sqlite3.Error as e:
-        raise HTTPException(status_code=500, detail="Error al borrar el contacto")
+# Respuesta de error
+def error_response(mensaje: str, status_code: int):
+    return JSONResponse(content={"mensaje": mensaje}, status_code=status_code)
 
 
-# Endpoint para buscar un contacto por email 
-@app.get("/contactos/buscar", description="Buscar contactos por email", response_model=list[dict])
-async def buscar_contactos_por_email(email: str):
-    try:
-        print(f'Búsqueda de contactos por email: {email}')
-        conn, cursor = connect_to_database()
-        cursor.execute('SELECT * FROM contactos WHERE email LIKE ?', ('%' + email + '%',))
-        contactos = cursor.fetchall()
-        print(f'Resultados de la búsqueda: {contactos}')
-        close_database_connection(conn)
-        return [dict(zip(["id_contacto", "nombre", "primer_apellido", "segundo_apellido", "email", "telefono"], c)) for c in contactos]
-    except Exception as e:
-        print(f'Error al buscar contactos por email: {e}')
-        raise HTTPException(status_code=500, detail="Error al buscar contactos por email")
-
-# Security setup
-security = HTTPBasic()
-
-# Conexión a la base de datos SQLite
-conn = sqlite3.connect('sql/usuarios.db')
-
-class TokenResponseModel(BaseModel):
-    token: str
-
-def validate_credentials(conn, usuario, password_hash):
-    try:
-        c = conn.cursor()
-        c.execute("SELECT * FROM usuarios WHERE usuario = ? AND contrasena = ?", (usuario, password_hash))
-        result = c.fetchone()
-
-        if result:
-            return result[2]  # Devuelve el token almacenado en la base de datos para el usuario
-        else:
-            return None  # Credenciales no válidas
-
-    except sqlite3.Error as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al validar las credenciales",
-        )
-
-def new_token():
-    return secrets.token_hex(128)  # Genera un nuevo token aleatorio
-
-def decrypt_token(encrypted_token):
-    return encrypted_token
-
-
-@app.get("/")
-async def root(credentials: HTTPBasicCredentials = Depends(security)):
-    user_token = validate_credentials(conn, credentials.usuario, hashlib.sha512(credentials.password.encode()).hexdigest())
-    conn.close()  # Asegúrate de cerrar la conexión
-    return {"message": "Inicio de sesión exitoso"}  # O cualquier otro mensaje que desees
-
-
-class TokenResponseModel(BaseModel):
-    token: str
-
-def cambiar_token_en_login(usuario):
+async def cambiar_token_en_login(email):
     token = str(new_token())
     c = conn.cursor()
-    c.execute("UPDATE usuarios SET token = ? WHERE usuario = ?", (token, usuario))
+    c.execute("UPDATE usuarios SET token = ? WHERE username = ?", (token, email))
+    conn.commit()
     return token
+    
+async def get_user_token(email: str, password_hash: str):
+    c = conn.cursor()
+    c.execute("SELECT token FROM usuarios WHERE username = ? AND password = ?", (email, password_hash))
+    result = c.fetchone()
+    return result
 
-async def get_user_token(usuario: str, password_hash: str):
-    try:
-        c = conn.cursor()
-        c.execute("SELECT token FROM usuarios WHERE usuario = ? AND contrasena = ?", (usuario, password_hash))
-        result = c.fetchone()
-        return result
-    except sqlite3.Error as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al obtener token del usuario",
-        )
 
-async def login(usuario: str, contrasena: str):
-    contrasena_hash = hash_password(contrasena)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM usuarios WHERE usuario = ? AND contrasena = ?", (usuario, contrasena_hash))
-    result = cursor.fetchone()
+@app.get("/token/")
+async def validate_user(credentials: HTTPBasicCredentials = Depends(security)):
+    email = credentials.username
+    password_hash = hashlib.md5(credentials.password.encode()).hexdigest()
 
-    if result:
-        usuario_token = decrypt_token(result[2])
-        return {"message": "Inicio de sesión exitoso", "user_token": usuario_token}
-    else:
-        raise HTTPException(status_code=401, detail="Usuario no encontrado, intente de nuevo por favor")
-
-@app.get("/auth/", response_model=TokenResponseModel)
-async def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
-    usuario = credentials.usuario
-    password_hash = hashlib.sha512(credentials.password.encode()).hexdigest()
-
-    user_token = await get_user_token(usuario, password_hash)
+    user_token = await get_user_token(email, password_hash)
 
     if user_token:
-        token = await cambiar_token_en_login(usuario)
-        return TokenResponseModel(token=token)
+        token = await cambiar_token_en_login(email)
+        response = {"token": token}
     else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -226,25 +81,144 @@ async def authenticate(credentials: HTTPBasicCredentials = Depends(security)):
             headers={"WWW-Authenticate": "Basic"},
         )
 
-# Nuevo endpoint para la ruta "/registro/"
-@app.post("/registro/")
-async def registro(usuario: str, contrasena: str):
-    contrasena_hash = hash_password(contrasena)  # Hashear la contraseña
-    token = new_token()  # Generar un token aleatorio
-    token_hash = hash_password(token)  # Encriptar el token
+    return response
 
-    # Insertar datos en la base de datos
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO usuarios (usuario, contrasena, token) VALUES (?, ?, ?)", (usuario, contrasena_hash, token_hash))
-    conn.commit()
 
-    return {"message": "Usuario registrado exitosamente"}
+@app.get("/")
+async def root(credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
+    token = credentialsv.credentials
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no proporcionado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-# Función para hashear una contraseña
-def hash_password(password: str) -> str:
-    # Utilizar el hash SHA-512 para la contraseña
-    return hashlib.sha512(password.encode()).hexdigest()
+    c = conn.cursor()
+    c.execute("SELECT token FROM usuarios WHERE token = ?", (token,))
+    result = c.fetchone()
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no válido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return {"message": "Token válido"}
+
+
+# Rutas para las operaciones CRUD
+
+@app.post("/contactos")
+async def crear_contacto(contacto: Contacto, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
+    token = credentialsv.credentials
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no proporcionado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        c = conn.cursor()
+        c.execute('INSERT INTO contactos (nombre, primer_apellido, segundo_apellido, email, telefono) VALUES (?, ?, ?, ?, ?)',
+                  (contacto.nombre, contacto.primer_apellido, contacto.segundo_apellido, contacto.email, contacto.telefono))
+        conn.commit()
+        return contacto
+    except sqlite3.IntegrityError as e:
+        if "UNIQUE constraint failed" in str(e):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El email ya existe")
+        else:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error al consultar los datos")
+
+
+@app.get("/contactos")
+async def obtener_contactos(credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
+    token = credentialsv.credentials
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no proporcionado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    """Obtiene todos los contactos."""
+    try:
+        c = conn.cursor()
+        c.execute('SELECT * FROM contactos;')
+        response = []
+        for row in c:
+            contacto = {"id_contacto": row[0], "nombre": row[1], "primer_apellido": row[2], "segundo_apellido": row[3], "email": row[4], "telefono": row[5]}
+            response.append(contacto)
+        if not response:
+            return []
+        return response
+    except sqlite3.Error:
+        return error_response("Error al consultar los datos", 500)
+
+
+@app.get("/contactos/{email}")
+async def obtener_contacto(email: str, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
+    token = credentialsv.credentials
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no proporcionado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    """Obtiene un contacto por su email."""
+    try:
+        c = conn.cursor()
+        c.execute('SELECT * FROM contactos WHERE email = ?', (email,))
+        contacto = None
+        for row in c:
+            contacto = {"id_contacto": row[0], "nombre": row[1], "primer_apellido": row[2], "segundo_apellido": row[3], "email": row[4], "telefono": row[5]}
+        if not contacto:
+            return error_response("El email de no existe", 404)
+        return contacto
+    except sqlite3.Error:
+        return error_response("Error al consultar los datos", 500)
+
+
+@app.put("/actualizar_contactos/{email}")
+async def actualizar_contacto(email: str, contacto: Contacto, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
+    token = credentialsv.credentials
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no proporcionado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    """Actualiza un contacto."""
+    try:
+        c = conn.cursor()
+        c.execute('UPDATE contactos SET nombre = ?, primer_apellido = ?, segundo_apellido = ?, telefono = ? WHERE email = ?',
+                  (contacto.nombre, contacto.primer_apellido, contacto.segundo_apellido, contacto.telefono, email))
+        conn.commit()
+        return contacto
+    except sqlite3.Error:
+        return error_response("El contacto no existe" if not obtener_contacto(email) else "Error al consultar los datos", 400)
+
+
+@app.delete("/contactos/{email}")
+async def eliminar_contacto(email: str, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
+    token = credentialsv.credentials
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token no proporcionado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    """Elimina un contacto."""
+    try:
+        c = conn.cursor()
+        c.execute('DELETE FROM contactos WHERE email = ?', (email,))
+        conn.commit()
+        if c.rowcount == 0:
+            return error_response("El contacto no existe", 404)
+        return {"mensaje": "Contacto eliminado"}
+    except sqlite3.Error:
+        return error_response("Error al consultar los datos", 500)
