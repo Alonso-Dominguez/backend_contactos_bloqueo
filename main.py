@@ -198,7 +198,7 @@ async def actualizar_contacto(id: int, contacto: Contacto, credentialsv: HTTPAut
     """Actualiza un contacto por ID."""
     try:
         c = conn.cursor()
-        c.execute('UPDATE contactos SET nombre = ?, primer_apellido = ?, segundo_apellido = ?, telefono = ? WHERE id = ?',
+        c.execute('UPDATE contactos SET nombre = ?, primer_apellido = ?, segundo_apellido = ?, telefono = ? WHERE id_contacto = ?',
                   (contacto.nombre, contacto.primer_apellido, contacto.segundo_apellido, contacto.telefono, id))
         conn.commit()
         return contacto
@@ -207,7 +207,7 @@ async def actualizar_contacto(id: int, contacto: Contacto, credentialsv: HTTPAut
 
 async def obtener_contacto_por_id(contacto_id: int):
     c = conn.cursor()
-    c.execute('SELECT * FROM contactos WHERE id = ?', (contacto_id,))
+    c.execute('SELECT * FROM contactos WHERE id_contacto = ?', (contacto_id,))
     contacto = None
     for row in c:
         contacto = {
