@@ -183,9 +183,9 @@ async def obtener_contacto(email: str, credentialsv: HTTPAuthorizationCredential
     except sqlite3.Error:
         return error_response("Error al consultar los datos", 500)
 
-#Actualiza el contacto por el id
-@app.put("/actualizar_contactos/{contacto_id}")
-async def actualizar_contacto_por_id(contacto_id: int, contacto: Contacto, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
+
+@app.put("/actualizar_contactos/{email}")
+async def actualizar_contacto(email: str, contacto: Contacto, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
     token = credentialsv.credentials
     if not token:
         raise HTTPException(
@@ -194,31 +194,16 @@ async def actualizar_contacto_por_id(contacto_id: int, contacto: Contacto, crede
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    """Actualiza un contacto por ID."""
+    """Actualiza un contacto."""
     try:
         c = conn.cursor()
-        c.execute('UPDATE contactos SET nombre = ?, primer_apellido = ?, segundo_apellido = ?, telefono = ? WHERE id_contacto = ?',
-                  (contacto.nombre, contacto.primer_apellido, contacto.segundo_apellido, contacto.telefono, contacto_id))
+        c.execute('UPDATE contactos SET nombre = ?, primer_apellido = ?, segundo_apellido = ?, telefono = ? WHERE email = ?',
+                  (contacto.nombre, contacto.primer_apellido, contacto.segundo_apellido, contacto.telefono, email))
         conn.commit()
         return contacto
     except sqlite3.Error:
-        return error_response("El contacto no existe" if not obtener_contacto_por_id(contacto_id) else "Error al consultar los datos", 400)
+        return error_response("El contacto no existe" if not obtener_contacto(email) else "Error al consultar los datos", 400)
 
-
-async def obtener_contacto_por_id(contacto_id: int):
-    c = conn.cursor()
-    c.execute('SELECT * FROM contactos WHERE id_contacto = ?', (contacto_id,))
-    contacto = None
-    for row in c:
-        contacto = {
-            "id_contacto": row[0],
-            "nombre": row[1],
-            "primer_apellido": row[2],
-            "segundo_apellido": row[3],
-            "email": row[4],
-            "telefono": row[5],
-        }
-    return contacto
 
 @app.delete("/contactos/{email}")
 async def eliminar_contacto(email: str, credentialsv: HTTPAuthorizationCredentials = Depends(securirtyBearer)):
